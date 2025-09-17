@@ -60,6 +60,18 @@ async def auth_status():
     except Exception as e:
         return {"authenticated": False, "error": str(e)}
 
+@app.get("/debug/auth")
+async def debug_auth():
+    """debug auth url generation"""
+    try:
+        from google_auth_oauthlib.flow import Flow
+        flow = Flow.from_client_secrets_file("credentials.json", ['https://www.googleapis.com/auth/gmail.readonly'])
+        flow.redirect_uri = 'http://localhost:8000/auth/callback'
+        auth_url, state = flow.authorization_url(prompt='consent')
+        return {"auth_url": auth_url, "redirect_uri": flow.redirect_uri}
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/", response_class=HTMLResponse)
 async def home():
     return """
