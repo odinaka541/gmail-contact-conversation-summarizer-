@@ -74,115 +74,161 @@ async def home():
             .processing { background: #fff3cd; color: #856404; }
             .complete { background: #d4edda; color: #155724; }
             .error { background: #f8d7da; color: #721c24; }
-            button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+            .warning { background: #ffeaa7; color: #8e6400; }
+            button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
             button:hover { background: #0056b3; }
+            button:disabled { background: #ccc; cursor: not-allowed; }
             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
             th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
             th { background-color: #f8f9fa; }
+            .auth-section { background: #e3f2fd; padding: 20px; border-radius: 5px; margin: 20px 0; }
         </style>
     </head>
     <body>
         <h1>AI Contact Automation Tool</h1>
         <p>Upload a CSV with contact names and emails to get AI-powered summaries of your last interactions.</p>
-
-        <div class="upload-area">
+        
+        <div id="authSection" class="auth-section" style="display: none;">
+            <h3>Gmail Authentication Required</h3>
+            <p>To access your Gmail conversations, you need to authorize this application.</p>
+            <button id="authButton">Authorize Gmail Access</button>
+        </div>
+        
+        <div class="upload-area" id="uploadArea">
             <form id="uploadForm" enctype="multipart/form-data">
                 <input type="file" id="csvFile" accept=".csv" required>
                 <br><br>
-                <button type="submit">Upload & Process</button>
+                <button type="submit" id="submitButton">Upload & Process</button>
             </form>
         </div>
-
+        
         <div id="status" style="display: none;"></div>
         <div id="results" style="display: none;"></div>
-
+        
         <script>
             let currentJobId = null;
-
+            let isAuthenticated = false;
+            
+            // check auth status on page load
+            window.addEventListener('load', checkAuthStatus);
+            
+            async function checkAuthStatus() {
+                try {
+                    const response = await fetch('/auth/status');
+                    const data = await response.json();
+                    
+                    if (data.authenticated) {
+                        isAuthenticated = true;
+                        document.getElementById('authSection').style.display = 'none';
+                        document.getElementById('submitButton').disabled = false;
+                    } else {
+                        isAuthenticated = false;
+                        document.getElementById('authSection').style.display = 'block';
+                        document.getElementById('submitButton').disabled = true;
+                        
+                        // set up auth button
+                        document.getElementById('authButton').onclick = () => {
+                            if (data.auth_url) {
+                                window.open(data.auth_url, '_blank');
+                                showStatus('please complete authorization in the new window, then refresh this page', 'warning');
+                            }
+                        };
+                    }
+                } catch (error) {
+                    showStatus('failed to check authentication status: ' + error.message, 'error');
+                }
+            }
+            
             document.getElementById('uploadForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
+                
+                if (!isAuthenticated) {
+                    showStatus('please authorize gmail access first', 'error');
+                    return;
+                }
+                
                 const formData = new FormData();
                 const fileInput = document.getElementById('csvFile');
                 formData.append('file', fileInput.files[0]);
-
+                
                 try {
                     const response = await fetch('/upload', {
                         method: 'POST',
                         body: formData
                     });
                     const data = await response.json();
-
+                    
                     if (response.ok) {
                         currentJobId = data.job_id;
-                        showStatus('Processing started...', 'processing');
+                        showStatus('processing started...', 'processing');
                         checkProgress();
                     } else {
                         showStatus(data.detail, 'error');
                     }
                 } catch (error) {
-                    showStatus('Upload failed: ' + error.message, 'error');
+                    showStatus('upload failed: ' + error.message, 'error');
                 }
             });
-
+            
             function showStatus(message, type) {
                 const statusDiv = document.getElementById('status');
                 statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
                 statusDiv.style.display = 'block';
             }
-
+            
             async function checkProgress() {
                 if (!currentJobId) return;
-
+                
                 try {
                     const response = await fetch(`/status/${currentJobId}`);
                     const data = await response.json();
-
+                    
                     if (data.status === 'processing') {
-                        showStatus(`Processing... ${data.progress}/${data.total} contacts completed`, 'processing');
+                        showStatus(`processing... ${data.progress}/${data.total} contacts completed`, 'processing');
                         setTimeout(checkProgress, 2000);
                     } else if (data.status === 'complete') {
-                        showStatus('Processing complete!', 'complete');
+                        showStatus('processing complete!', 'complete');
                         loadResults();
                     } else if (data.status === 'error') {
-                        showStatus('Error: ' + data.error, 'error');
+                        showStatus('error: ' + data.error, 'error');
                     }
                 } catch (error) {
-                    showStatus('Status check failed: ' + error.message, 'error');
+                    showStatus('status check failed: ' + error.message, 'error');
                 }
             }
-
+            
             async function loadResults() {
                 if (!currentJobId) return;
-
+                
                 try {
                     const response = await fetch(`/results/${currentJobId}`);
                     const data = await response.json();
-
+                    
                     let html = '<h2>Results</h2>';
                     html += '<button onclick="exportResults()">Export CSV</button>';
                     html += '<table><tr><th>Name</th><th>Email</th><th>Last Contact</th><th>Summary</th><th>Services Used</th></tr>';
-
+                    
                     data.results.forEach(result => {
                         html += `<tr>
                             <td>${result.name}</td>
                             <td>${result.email}</td>
-                            <td>${result.last_contact || 'No contact found'}</td>
-                            <td>${result.summary || 'No summary available'}</td>
-                            <td>${result.services || 'None identified'}</td>
+                            <td>${result.last_contact || 'no contact found'}</td>
+                            <td>${result.summary || 'no summary available'}</td>
+                            <td>${result.services || 'none identified'}</td>
                         </tr>`;
                     });
-
+                    
                     html += '</table>';
                     document.getElementById('results').innerHTML = html;
                     document.getElementById('results').style.display = 'block';
                 } catch (error) {
-                    showStatus('Failed to load results: ' + error.message, 'error');
+                    showStatus('failed to load results: ' + error.message, 'error');
                 }
             }
-
+            
             async function exportResults() {
                 if (!currentJobId) return;
-
+                
                 const link = document.createElement('a');
                 link.href = `/export/${currentJobId}`;
                 link.download = 'contact_summaries.csv';
@@ -192,7 +238,6 @@ async def home():
     </body>
     </html>
     """
-
 
 @app.post("/upload")
 async def upload_csv(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
