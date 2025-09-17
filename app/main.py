@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, Response, RedirectResponse
@@ -5,7 +6,10 @@ import pandas as pd
 import os, uuid, json
 from typing import List, Dict
 from datetime import datetime
+from ai_processor import AIProcessor
 from gmail_client import GmailClient
+
+load_dotenv()
 
 app = FastAPI(title="AI Contact Automation", version="1.0.0")
 
@@ -15,6 +19,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # in-memory storage for demo * db later
 jobs = {}
 results = {}
+ai_processor = AIProcessor(api_key=os.getenv("GEMINI_API_KEY"))
 gmail_client = GmailClient()
 
 # integrates with gmail client
