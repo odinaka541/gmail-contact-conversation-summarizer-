@@ -2,7 +2,6 @@
 
 # imports
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Request
-# from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, Response, RedirectResponse
 import pandas as pd
 import os, uuid, json
@@ -14,9 +13,6 @@ from ai_processor import AIProcessor
 load_dotenv()
 
 app = FastAPI(title="AI Contact Automation", version="1.0.0")
-
-# mount static files
-#app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # in-memory storage for demo
 jobs = {}
