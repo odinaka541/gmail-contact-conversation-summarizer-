@@ -17,6 +17,48 @@ jobs = {}
 results = {}
 gmail_client = GmailClient()
 
+# integrates with gmail client
+@app.get("/auth/gmail")
+async def auth_gmail():
+    """initiate gmail oauth flow"""
+    try:
+        auth_url = gmail_client.authenticate()
+        if auth_url:
+            return {"auth_url": auth_url, "message": "authorization required"}
+        else:
+            return {"message": "already authenticated"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"auth error: {str(e)}")
+
+
+@app.get("/auth/callback")
+async def auth_callback(code: str = None, error: str = None):
+    """handle oauth callback"""
+    if error:
+        raise HTTPException(status_code=400, detail=f"auth error: {error}")
+
+    if not code:
+        raise HTTPException(status_code=400, detail="no authorization code received")
+
+    try:
+        gmail_client.complete_auth(code)
+        return RedirectResponse(url="/?auth=success")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"auth completion error: {str(e)}")
+
+
+@app.get("/auth/status")
+async def auth_status():
+    """ check gmail authentication status"""
+    try:
+        # try to authenticate (will return None if already authenticated)
+        auth_url = gmail_client.authenticate()
+        if auth_url:
+            return {"authenticated": False, "auth_url": auth_url}
+        else:
+            return {"authenticated": True}
+    except Exception as e:
+        return {"authenticated": False, "error": str(e)}
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
